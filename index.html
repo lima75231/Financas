@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Controle Financeiro</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f8f9fa;
+    }
+
+    h1, h2 {
+      text-align: center;
+      color: #333;
+    }
+
+    form, .filtros {
+      margin: 20px 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    input, select, button {
+      padding: 8px;
+      font-size: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: white;
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #343a40;
+      color: white;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f2f2f2;
+    }
+
+    tr.pendente {
+      background-color: #fff3cd;
+    }
+
+    .acoes button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 18px;
+      margin: 0 4px;
+    }
+
+    canvas {
+      max-width: 600px;
+      margin: 20px auto;
+      display: block;
+    }
+
+    @media (max-width: 768px) {
+      table, thead, tbody, th, td, tr {
+        font-size: 14px;
+      }
+
+      form, .filtros {
+        flex-direction: column;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Controle Financeiro</h1>
+
+  <form id="form">
+    <input type="text" id="descricao" placeholder="Descrição" required>
+    <input type="text" id="valor" placeholder="Valor (ex: 112,53)" required>
+    <input type="date" id="vencimento" required>
+    <select id="tipo">
+      <option value="entrada">Entrada</option>
+      <option value="saida">Saída</option>
+    </select>
+    <select id="status">
+      <option value="pago">Pago</option>
+      <option value="pendente">Pendente</option>
+    </select>
+    <button type="submit">Adicionar</button>
+  </form>
+
+  <div class="filtros">
+    <select id="filtroMes">
+      <option value="todos">Todos os Meses</option>
+    </select>
+    <select id="filtroAno">
+      <option value="todos">Todos os Anos</option>
+    </select>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Descrição</th>
+        <th>Valor</th>
+        <th>Tipo</th>
+        <th>Vencimento</th>
+        <th>Status</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody id="tabela"></tbody>
+  </table>
+
+  <h2>Resumo Financeiro Mensal</h2>
+  <canvas id="grafico"></canvas>
+
+  <script>
+    const API_URL = 'https://sheetdb.io/api/v1/vr5v5x0y9am0j';
+    const form = document.getElementById('form');
+    const tabela = document.getElementById('tabela');
+    const filtroMes = document.getElementById('filtroMes');
+    const filtroAno = document.getElementById('filtroAno');
+    let grafico;
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const novo = {
+        id: Date.now().toString(), // Geração de ID automático
+        descricao: form.descricao.value,
+        valor: form.valor.value.replace(',', '.'),
+        tipo: form.tipo.value,
+        vencimento: formatarData(form.vencimento.value),
+        status: form.status.value
+      };
+      await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: novo })
+      });
+      form.reset();
+      carregarDados();
+    };
+
+    function formatarData(dataISO) {
+      if (!dataISO) return '';
+      const [ano, mes, dia] = dataISO.split('-');
+      return `${dia}/${mes}/${ano}`;
+    }
+
+    function formatarDataParaFiltro(data) {
+      const [dia, mes, ano] = data.split('/');
+      return { dia, mes, ano };
+    }
+
+    async function carregarDados() {
+      const res = await fetch(API_URL);
+      const dados = await res.json();
+
+      const mesSelecionado = filtroMes.value;
+      const anoSelecionado = filtroAno.value;
+
+      const meses = new Set();
+      const anos = new Set();
+
+      tabela.innerHTML = '';
+      let entradas = 0, saidas = 0;
+
+      dados.forEach((item) => {
+        const { mes, ano } = formatarDataParaFiltro(item.vencimento);
+        meses.add(mes);
+        anos.add(ano);
+
+        if ((mesSelecionado === 'todos' || mes === mesSelecionado) &&
+            (anoSelecionado === 'todos' || ano === anoSelecionado)) {
+
+          const tr = document.createElement('tr');
+          if (item.status === 'pendente') tr.classList.add('pendente');
+
+          const valorNum = parseFloat(item.valor);
+
+          tr.innerHTML = `
+            <td>${item.descricao}</td>
+            <td>R$ ${valorNum.toFixed(2)}</td>
+            <td>${item.tipo}</td>
+            <td>${item.vencimento}</td>
+            <td>${item.status}</td>
+            <td class="acoes">
+              <button onclick="remover('${item.id}')">🗑️</button>
+              <button onclick="marcarPago('${item.id}')">✔️</button>
+            </td>
+          `;
+
+          tabela.appendChild(tr);
+
+          if (item.tipo === 'entrada') entradas += valorNum;
+          else if (item.tipo === 'saida') saidas += valorNum;
+        }
+      });
+
+      popularFiltros([...meses], [...anos]);
+      atualizarGrafico(entradas, saidas);
+    }
+
+    function popularFiltros(meses, anos) {
+      filtroMes.innerHTML = '<option value="todos">Todos os Meses</option>';
+      filtroAno.innerHTML = '<option value="todos">Todos os Anos</option>';
+      meses.sort().forEach(m => {
+        filtroMes.innerHTML += `<option value="${m}">${m}</option>`;
+      });
+      anos.sort().forEach(a => {
+        filtroAno.innerHTML += `<option value="${a}">${a}</option>`;
+      });
+    }
+
+    async function remover(id) {
+      if (id) {
+        await fetch(`${API_URL}/id/${id}`, { method: 'DELETE' });
+        carregarDados();
+      }
+    }
+
+    async function marcarPago(id) {
+      if (id) {
+        await fetch(`${API_URL}/id/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: { status: 'pago' } })
+        });
+        carregarDados();
+      }
+    }
+
+    function atualizarGrafico(entradas, saidas) {
+      const saldo = entradas - saidas;
+      const ctx = document.getElementById('grafico').getContext('2d');
+      if (grafico) grafico.destroy();
+      grafico = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Entradas', 'Saídas', 'Saldo'],
+          datasets: [{
+            label: 'R$',
+            data: [entradas, saidas, saldo],
+            backgroundColor: ['#0d6efd', '#dc3545', '#198754']
+          }]
+        }
+      });
+    }
+
+    filtroMes.onchange = filtroAno.onchange = carregarDados;
+
+    carregarDados();
+  </script>
+</body>
+</html>
