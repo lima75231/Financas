@@ -95,6 +95,16 @@
       <option value="pago">Pago</option>
       <option value="pendente">Pendente</option>
     </select>
+    <select id="categoria" required>
+      <option value="">Categoria</option>
+      <option value="Alimentação">Alimentação</option>
+      <option value="Transporte">Transporte</option>
+      <option value="Moradia">Moradia</option>
+      <option value="Saúde">Saúde</option>
+      <option value="Educação">Educação</option>
+      <option value="Lazer">Lazer</option>
+      <option value="Outros">Outros</option>
+    </select>
     <button type="submit">Adicionar</button>
   </form>
 
@@ -104,6 +114,9 @@
     </select>
     <select id="filtroAno">
       <option value="todos">Todos os Anos</option>
+    </select>
+    <select id="filtroCategoria">
+      <option value="todas">Todas as Categorias</option>
     </select>
   </div>
 
@@ -115,6 +128,7 @@
         <th>Tipo</th>
         <th>Vencimento</th>
         <th>Status</th>
+        <th>Categoria</th>
         <th>Ações</th>
       </tr>
     </thead>
@@ -130,17 +144,19 @@
     const tabela = document.getElementById('tabela');
     const filtroMes = document.getElementById('filtroMes');
     const filtroAno = document.getElementById('filtroAno');
+    const filtroCategoria = document.getElementById('filtroCategoria');
     let grafico;
 
     form.onsubmit = async (e) => {
       e.preventDefault();
       const novo = {
-        id: Date.now().toString(), // Geração de ID automático
+        id: Date.now().toString(),
         descricao: form.descricao.value,
         valor: form.valor.value.replace(',', '.'),
         tipo: form.tipo.value,
         vencimento: formatarData(form.vencimento.value),
-        status: form.status.value
+        status: form.status.value,
+        categoria: form.categoria.value
       };
       await fetch(API_URL, {
         method: 'POST',
@@ -168,9 +184,11 @@
 
       const mesSelecionado = filtroMes.value;
       const anoSelecionado = filtroAno.value;
+      const categoriaSelecionada = filtroCategoria.value;
 
       const meses = new Set();
       const anos = new Set();
+      const categorias = new Set();
 
       tabela.innerHTML = '';
       let entradas = 0, saidas = 0;
@@ -179,10 +197,13 @@
         const { mes, ano } = formatarDataParaFiltro(item.vencimento);
         meses.add(mes);
         anos.add(ano);
+        if (item.categoria) categorias.add(item.categoria);
 
-        if ((mesSelecionado === 'todos' || mes === mesSelecionado) &&
-            (anoSelecionado === 'todos' || ano === anoSelecionado)) {
-
+        if (
+          (mesSelecionado === 'todos' || mes === mesSelecionado) &&
+          (anoSelecionado === 'todos' || ano === anoSelecionado) &&
+          (categoriaSelecionada === 'todas' || item.categoria === categoriaSelecionada)
+        ) {
           const tr = document.createElement('tr');
           if (item.status === 'pendente') tr.classList.add('pendente');
 
@@ -194,12 +215,12 @@
             <td>${item.tipo}</td>
             <td>${item.vencimento}</td>
             <td>${item.status}</td>
+            <td>${item.categoria || ''}</td>
             <td class="acoes">
               <button onclick="remover('${item.id}')">🗑️</button>
               <button onclick="marcarPago('${item.id}')">✔️</button>
             </td>
           `;
-
           tabela.appendChild(tr);
 
           if (item.tipo === 'entrada') entradas += valorNum;
@@ -207,18 +228,23 @@
         }
       });
 
-      popularFiltros([...meses], [...anos]);
+      popularFiltros([...meses], [...anos], [...categorias]);
       atualizarGrafico(entradas, saidas);
     }
 
-    function popularFiltros(meses, anos) {
+    function popularFiltros(meses, anos, categorias) {
       filtroMes.innerHTML = '<option value="todos">Todos os Meses</option>';
       filtroAno.innerHTML = '<option value="todos">Todos os Anos</option>';
+      filtroCategoria.innerHTML = '<option value="todas">Todas as Categorias</option>';
+
       meses.sort().forEach(m => {
         filtroMes.innerHTML += `<option value="${m}">${m}</option>`;
       });
       anos.sort().forEach(a => {
         filtroAno.innerHTML += `<option value="${a}">${a}</option>`;
+      });
+      categorias.sort().forEach(c => {
+        filtroCategoria.innerHTML += `<option value="${c}">${c}</option>`;
       });
     }
 
@@ -257,7 +283,7 @@
       });
     }
 
-    filtroMes.onchange = filtroAno.onchange = carregarDados;
+    filtroMes.onchange = filtroAno.onchange = filtroCategoria.onchange = carregarDados;
 
     carregarDados();
   </script>
