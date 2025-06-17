@@ -16,7 +16,7 @@
       color: #333;
     }
 
-    form, .filtros {
+    form, .filtros, .navegacao-mes {
       margin: 20px 0;
       display: flex;
       flex-wrap: wrap;
@@ -73,7 +73,7 @@
         font-size: 14px;
       }
 
-      form, .filtros {
+      form, .filtros, .navegacao-mes {
         flex-direction: column;
         align-items: center;
       }
@@ -95,29 +95,13 @@
       <option value="pago">Pago</option>
       <option value="pendente">Pendente</option>
     </select>
-    <select id="categoria" required>
-      <option value="">Categoria</option>
-      <option value="Alimentação">Alimentação</option>
-      <option value="Transporte">Transporte</option>
-      <option value="Moradia">Moradia</option>
-      <option value="Saúde">Saúde</option>
-      <option value="Educação">Educação</option>
-      <option value="Lazer">Lazer</option>
-      <option value="Outros">Outros</option>
-    </select>
     <button type="submit">Adicionar</button>
   </form>
 
-  <div class="filtros">
-    <select id="filtroMes">
-      <option value="todos">Todos os Meses</option>
-    </select>
-    <select id="filtroAno">
-      <option value="todos">Todos os Anos</option>
-    </select>
-    <select id="filtroCategoria">
-      <option value="todas">Todas as Categorias</option>
-    </select>
+  <div class="navegacao-mes">
+    <button id="mesAnterior">← Mês Anterior</button>
+    <strong id="mesAtualTexto"></strong>
+    <button id="proximoMes">Próximo Mês →</button>
   </div>
 
   <table>
@@ -128,7 +112,6 @@
         <th>Tipo</th>
         <th>Vencimento</th>
         <th>Status</th>
-        <th>Categoria</th>
         <th>Ações</th>
       </tr>
     </thead>
@@ -142,10 +125,14 @@
     const API_URL = 'https://sheetdb.io/api/v1/vr5v5x0y9am0j';
     const form = document.getElementById('form');
     const tabela = document.getElementById('tabela');
-    const filtroMes = document.getElementById('filtroMes');
-    const filtroAno = document.getElementById('filtroAno');
-    const filtroCategoria = document.getElementById('filtroCategoria');
+    const mesAtualTexto = document.getElementById('mesAtualTexto');
+    const mesAnteriorBtn = document.getElementById('mesAnterior');
+    const proximoMesBtn = document.getElementById('proximoMes');
     let grafico;
+
+    let dadosOriginais = [];
+    let mesesDisponiveis = [];
+    let indiceMesAtual = 0;
 
     form.onsubmit = async (e) => {
       e.preventDefault();
@@ -155,8 +142,7 @@
         valor: form.valor.value.replace(',', '.'),
         tipo: form.tipo.value,
         vencimento: formatarData(form.vencimento.value),
-        status: form.status.value,
-        categoria: form.categoria.value
+        status: form.status.value
       };
       await fetch(API_URL, {
         method: 'POST',
@@ -181,41 +167,46 @@
     async function carregarDados() {
       const res = await fetch(API_URL);
       const dados = await res.json();
+      dadosOriginais = dados;
 
-      const mesSelecionado = filtroMes.value;
-      const anoSelecionado = filtroAno.value;
-      const categoriaSelecionada = filtroCategoria.value;
+      const chavesMesAno = new Set();
+      dados.forEach(item => {
+        const { mes, ano } = formatarDataParaFiltro(item.vencimento);
+        chavesMesAno.add(`${mes}/${ano}`);
+      });
 
-      const meses = new Set();
-      const anos = new Set();
-      const categorias = new Set();
+      mesesDisponiveis = Array.from(chavesMesAno).sort((a, b) => {
+        const [m1, y1] = a.split('/');
+        const [m2, y2] = b.split('/');
+        return new Date(`${y1}-${m1}-01`) - new Date(`${y2}-${m2}-01`);
+      });
+
+      if (indiceMesAtual >= mesesDisponiveis.length) indiceMesAtual = mesesDisponiveis.length - 1;
+
+      atualizarTela();
+    }
+
+    function atualizarTela() {
+      const chave = mesesDisponiveis[indiceMesAtual];
+      const [mesSelecionado, anoSelecionado] = chave.split('/');
+      mesAtualTexto.textContent = `${mesSelecionado}/${anoSelecionado}`;
 
       tabela.innerHTML = '';
       let entradas = 0, saidas = 0;
 
-      dados.forEach((item) => {
+      dadosOriginais.forEach((item) => {
         const { mes, ano } = formatarDataParaFiltro(item.vencimento);
-        meses.add(mes);
-        anos.add(ano);
-        if (item.categoria) categorias.add(item.categoria);
-
-        if (
-          (mesSelecionado === 'todos' || mes === mesSelecionado) &&
-          (anoSelecionado === 'todos' || ano === anoSelecionado) &&
-          (categoriaSelecionada === 'todas' || item.categoria === categoriaSelecionada)
-        ) {
+        if (mes === mesSelecionado && ano === anoSelecionado) {
           const tr = document.createElement('tr');
           if (item.status === 'pendente') tr.classList.add('pendente');
 
           const valorNum = parseFloat(item.valor);
-
           tr.innerHTML = `
             <td>${item.descricao}</td>
             <td>R$ ${valorNum.toFixed(2)}</td>
             <td>${item.tipo}</td>
             <td>${item.vencimento}</td>
             <td>${item.status}</td>
-            <td>${item.categoria || ''}</td>
             <td class="acoes">
               <button onclick="remover('${item.id}')">🗑️</button>
               <button onclick="marcarPago('${item.id}')">✔️</button>
@@ -228,24 +219,7 @@
         }
       });
 
-      popularFiltros([...meses], [...anos], [...categorias]);
       atualizarGrafico(entradas, saidas);
-    }
-
-    function popularFiltros(meses, anos, categorias) {
-      filtroMes.innerHTML = '<option value="todos">Todos os Meses</option>';
-      filtroAno.innerHTML = '<option value="todos">Todos os Anos</option>';
-      filtroCategoria.innerHTML = '<option value="todas">Todas as Categorias</option>';
-
-      meses.sort().forEach(m => {
-        filtroMes.innerHTML += `<option value="${m}">${m}</option>`;
-      });
-      anos.sort().forEach(a => {
-        filtroAno.innerHTML += `<option value="${a}">${a}</option>`;
-      });
-      categorias.sort().forEach(c => {
-        filtroCategoria.innerHTML += `<option value="${c}">${c}</option>`;
-      });
     }
 
     async function remover(id) {
@@ -283,7 +257,19 @@
       });
     }
 
-    filtroMes.onchange = filtroAno.onchange = filtroCategoria.onchange = carregarDados;
+    mesAnteriorBtn.onclick = () => {
+      if (indiceMesAtual > 0) {
+        indiceMesAtual--;
+        atualizarTela();
+      }
+    };
+
+    proximoMesBtn.onclick = () => {
+      if (indiceMesAtual < mesesDisponiveis.length - 1) {
+        indiceMesAtual++;
+        atualizarTela();
+      }
+    };
 
     carregarDados();
   </script>
