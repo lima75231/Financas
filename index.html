@@ -4,10 +4,9 @@
   <meta charset="UTF-8" />
   <title>Controle Financeiro Moderno</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  
+
   <!-- Bootstrap 5 CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     body {
@@ -15,7 +14,6 @@
       padding: 20px;
     }
 
-    /* Animações para fade in e fade out */
     .fade-in {
       animation: fadeIn 0.4s ease forwards;
     }
@@ -104,23 +102,10 @@
     <!-- Resumo mensal -->
     <div id="resumoMensal" class="text-center fs-5 fw-semibold mb-4"></div>
 
-    <!-- Dashboard com gráficos e totais gerais -->
+    <!-- Resumo geral -->
     <div class="card p-3 mb-5 shadow-sm">
-      <h2 class="text-center mb-4">Dashboard Consolidado</h2>
-      
-      <div class="row justify-content-center">
-        <div class="col-md-6 mb-4">
-          <h5 class="text-center">Resumo Financeiro Mensal</h5>
-          <canvas id="grafico"></canvas>
-        </div>
-
-        <div class="col-md-6 mb-4">
-          <h5 class="text-center">Evolução Financeira Mensal</h5>
-          <canvas id="graficoLinha"></canvas>
-        </div>
-      </div>
-
-      <div id="resumoGeral" class="text-center fs-5 fw-semibold mt-4"></div>
+      <h2 class="text-center mb-4">Resumo Geral</h2>
+      <div id="resumoGeral" class="text-center fs-5 fw-semibold mt-2"></div>
     </div>
 
   </div>
@@ -140,23 +125,17 @@
   let mesesDisponiveis = [];
   let indiceMesAtual = 0;
 
-  let graficoBarra;
-  let graficoLinha;
-
-  // Formata data para dd/mm/aaaa
   function formatarData(dataISO) {
     if (!dataISO) return '';
     const [ano, mes, dia] = dataISO.split('-');
     return `${dia}/${mes}/${ano}`;
   }
 
-  // Converte dd/mm/aaaa para {dia, mes, ano}
   function formatarDataParaFiltro(data) {
     const [dia, mes, ano] = data.split('/');
     return { dia, mes, ano };
   }
 
-  // Adiciona novo lançamento na planilha via API
   form.onsubmit = async (e) => {
     e.preventDefault();
 
@@ -169,7 +148,6 @@
       status: form.status.value
     };
 
-    // Validação básica
     if (!novo.descricao || isNaN(parseFloat(novo.valor))) {
       alert('Preencha descrição e valor corretamente.');
       return;
@@ -185,7 +163,6 @@
     await carregarDados();
   };
 
-  // Carrega todos os dados e organiza meses disponíveis
   async function carregarDados() {
     const res = await fetch(API_URL);
     const dados = await res.json();
@@ -203,16 +180,13 @@
       return new Date(`${y1}-${m1}-01`) - new Date(`${y2}-${m2}-01`);
     });
 
-    // Ajusta índice caso fora do range
     if (indiceMesAtual >= mesesDisponiveis.length) indiceMesAtual = mesesDisponiveis.length - 1;
     if (indiceMesAtual < 0) indiceMesAtual = 0;
 
     atualizarTela();
     atualizarTotaisGerais();
-    atualizarGraficoLinha();
   }
 
-  // Atualiza a tabela e resumo mensal para o mês selecionado
   function atualizarTela() {
     const chave = mesesDisponiveis[indiceMesAtual];
     if (!chave) {
@@ -221,6 +195,7 @@
       resumoMensal.innerHTML = '';
       return;
     }
+
     const [mesSelecionado, anoSelecionado] = chave.split('/');
     mesAtualTexto.textContent = `${mesSelecionado}/${anoSelecionado}`;
 
@@ -235,7 +210,6 @@
         tr.classList.add('fade-in');
 
         const valorNum = parseFloat(item.valor);
-
         tr.innerHTML = `
           <td>${item.descricao}</td>
           <td>R$ ${valorNum.toFixed(2)}</td>
@@ -243,8 +217,8 @@
           <td>${item.vencimento}</td>
           <td>${item.status.charAt(0).toUpperCase() + item.status.slice(1)}</td>
           <td>
-            <button class="btn btn-sm btn-outline-danger" title="Remover" onclick="remover('${item.id}', this)">🗑️</button>
-            <button class="btn btn-sm btn-outline-success" title="Marcar como Pago" onclick="marcarPago('${item.id}', this)">✔️</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="remover('${item.id}', this)">🗑️</button>
+            <button class="btn btn-sm btn-outline-success" onclick="marcarPago('${item.id}', this)">✔️</button>
           </td>
         `;
         tabela.appendChild(tr);
@@ -254,11 +228,9 @@
       }
     });
 
-    atualizarGraficoBarra(entradas, saidas);
     atualizarResumoMensal(entradas, saidas);
   }
 
-  // Atualiza resumo mensal textual
   function atualizarResumoMensal(entradas, saidas) {
     const saldo = entradas - saidas;
     resumoMensal.innerHTML = `
@@ -268,22 +240,16 @@
     `;
   }
 
-  // Remove lançamento com animação
   async function remover(id, btn) {
     if (!confirm('Deseja remover este lançamento?')) return;
-
-    // Animação fade-out na linha da tabela
     const tr = btn.closest('tr');
     tr.classList.add('fade-out');
-
-    // Aguarda animação antes de remover
     setTimeout(async () => {
       await fetch(`${API_URL}/id/${id}`, { method: 'DELETE' });
       await carregarDados();
     }, 400);
   }
 
-  // Marca lançamento como pago com animação
   async function marcarPago(id, btn) {
     await fetch(`${API_URL}/id/${id}`, {
       method: 'PATCH',
@@ -293,37 +259,6 @@
     await carregarDados();
   }
 
-  // Atualiza gráfico de barras mensal
-  function atualizarGraficoBarra(entradas, saidas) {
-    const saldo = entradas - saidas;
-    const ctx = document.getElementById('grafico').getContext('2d');
-    if (graficoBarra) graficoBarra.destroy();
-
-    graficoBarra = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: ['Entradas', 'Saídas', 'Saldo'],
-        datasets: [{
-          label: 'R$',
-          data: [entradas, saidas, saldo],
-          backgroundColor: ['#0d6efd', '#dc3545', '#198754']
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { display: false }
-        },
-        scales: {
-          y: {
-            beginAtZero: true
-          }
-        }
-      }
-    });
-  }
-
-  // Atualiza totais gerais abaixo do dashboard
   function atualizarTotaisGerais() {
     let totalEntradas = 0, totalSaidas = 0;
     dadosOriginais.forEach(item => {
@@ -341,78 +276,6 @@
     `;
   }
 
-  // Atualiza gráfico de linha evolução mensal
-  function atualizarGraficoLinha() {
-    const dadosPorMes = {};
-
-    dadosOriginais.forEach(item => {
-      const { mes, ano } = formatarDataParaFiltro(item.vencimento);
-      const chave = `${mes}/${ano}`;
-      if (!dadosPorMes[chave]) dadosPorMes[chave] = { entradas: 0, saidas: 0 };
-      const valor = parseFloat(item.valor);
-      if (item.tipo === 'entrada') dadosPorMes[chave].entradas += valor;
-      else if (item.tipo === 'saida') dadosPorMes[chave].saidas += valor;
-    });
-
-    const labels = Object.keys(dadosPorMes).sort((a,b) => {
-      const [m1,y1] = a.split('/');
-      const [m2,y2] = b.split('/');
-      return new Date(`${y1}-${m1}-01`) - new Date(`${y2}-${m2}-01`);
-    });
-
-    const entradas = labels.map(k => dadosPorMes[k].entradas);
-    const saidas = labels.map(k => dadosPorMes[k].saidas);
-    const saldos = labels.map((_, i) => entradas[i] - saidas[i]);
-
-    const ctx = document.getElementById('graficoLinha').getContext('2d');
-    if (graficoLinha) graficoLinha.destroy();
-
-    graficoLinha = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'Entradas',
-            data: entradas,
-            borderColor: '#0d6efd',
-            backgroundColor: '#0d6efd22',
-            fill: true,
-            tension: 0.3
-          },
-          {
-            label: 'Saídas',
-            data: saidas,
-            borderColor: '#dc3545',
-            backgroundColor: '#dc354522',
-            fill: true,
-            tension: 0.3
-          },
-          {
-            label: 'Saldo',
-            data: saldos,
-            borderColor: '#198754',
-            backgroundColor: '#19875422',
-            fill: true,
-            tension: 0.3
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { position: 'top' }
-        },
-        scales: {
-          y: {
-            beginAtZero: true
-          }
-        }
-      }
-    });
-  }
-
-  // Navegação meses
   mesAnteriorBtn.onclick = () => {
     if (indiceMesAtual > 0) {
       indiceMesAtual--;
@@ -427,11 +290,9 @@
     }
   };
 
-  // Inicializa carregando dados
   carregarDados();
 </script>
 
-<!-- Bootstrap Bundle JS (popper + bootstrap) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
