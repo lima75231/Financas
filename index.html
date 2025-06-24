@@ -108,6 +108,44 @@
       <div id="resumoGeral" class="text-center fs-5 fw-semibold mt-2"></div>
     </div>
 
+    <!-- Dívidas em Atraso -->
+<div class="card p-3 shadow-sm mb-5">
+  <h2 class="text-center mb-4">Dívidas em Atraso</h2>
+
+  <!-- Formulário de Dívidas -->
+  <form id="formDividas" class="row gy-2 gx-3 align-items-center justify-content-center mb-4">
+    <div class="col-sm-12 col-md-4">
+      <input type="text" id="descricaoDivida" class="form-control" placeholder="Descrição da Dívida" required />
+    </div>
+    <div class="col-sm-6 col-md-3">
+      <input type="text" id="valorDivida" class="form-control" placeholder="Valor (ex: 999,99)" required />
+    </div>
+    <div class="col-sm-6 col-md-3">
+      <input type="date" id="vencimentoDivida" class="form-control" required />
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-danger">Registrar Dívida</button>
+    </div>
+  </form>
+
+  <!-- Tabela de Dívidas -->
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover align-middle text-center">
+      <thead class="table-danger">
+        <tr>
+          <th>Descrição</th>
+          <th>Valor</th>
+          <th>Vencimento</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tabelaDividas"></tbody>
+    </table>
+  </div>
+
+  <div class="text-center fs-5 fw-bold mt-3" id="resumoDividas"></div>
+</div>
+
   </div>
 
 <script>
@@ -185,6 +223,7 @@
 
     atualizarTela();
     atualizarTotaisGerais();
+    atualizarDividas();
   }
 
   function atualizarTela() {
@@ -291,6 +330,62 @@
   };
 
   carregarDados();
+
+const formDividas = document.getElementById('formDividas');
+const tabelaDividas = document.getElementById('tabelaDividas');
+const resumoDividas = document.getElementById('resumoDividas');
+
+// Submeter nova dívida
+formDividas.onsubmit = async (e) => {
+  e.preventDefault();
+
+  const novaDivida = {
+    id: 'divida-' + Date.now().toString(),
+    descricao: formDividas.descricaoDivida.value.trim(),
+    valor: formDividas.valorDivida.value.replace(',', '.').trim(),
+    vencimento: formatarData(formDividas.vencimentoDivida.value),
+    tipo: 'divida'
+  };
+
+  if (!novaDivida.descricao || isNaN(parseFloat(novaDivida.valor))) {
+    alert('Preencha a descrição e o valor da dívida corretamente.');
+    return;
+  }
+
+  await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: novaDivida })
+  });
+
+  formDividas.reset();
+  await carregarDados();
+};
+
+// Atualizar dívidas em atraso
+function atualizarDividas() {
+  tabelaDividas.innerHTML = '';
+  let totalDividas = 0;
+
+  dadosOriginais.filter(item => item.tipo === 'divida').forEach(divida => {
+    const valor = parseFloat(divida.valor);
+    totalDividas += valor;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${divida.descricao}</td>
+      <td>R$ ${valor.toFixed(2)}</td>
+      <td>${divida.vencimento}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-danger" onclick="remover('${divida.id}', this)">🗑️</button>
+      </td>
+    `;
+    tabelaDividas.appendChild(tr);
+  });
+
+  resumoDividas.innerHTML = `🔴 Total de Dívidas: R$ ${totalDividas.toFixed(2)}`;
+}
+
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
