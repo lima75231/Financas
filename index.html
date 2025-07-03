@@ -238,46 +238,56 @@
     const [mesSelecionado, anoSelecionado] = chave.split('/');
     mesAtualTexto.textContent = `${mesSelecionado}/${anoSelecionado}`;
 
-    tabela.innerHTML = '';
-    let entradas = 0, saidas = 0;
+  tabela.innerHTML = '';
+  let entradas = 0, saidas = 0;
 
-    dadosOriginais.forEach(item => {
+  const dadosMesAtual = dadosOriginais
+    .filter(item => {
       const { mes, ano } = formatarDataParaFiltro(item.vencimento);
-      if (mes === mesSelecionado && ano === anoSelecionado) {
-        const tr = document.createElement('tr');
-        if (item.status === 'pendente') tr.classList.add('pendente');
-        tr.classList.add('fade-in');
-
-        const valorNum = parseFloat(item.valor);
-        tr.innerHTML = `
-          <td>${item.descricao}</td>
-          <td>R$ ${valorNum.toFixed(2)}</td>
-          <td>${item.tipo.charAt(0).toUpperCase() + item.tipo.slice(1)}</td>
-          <td>${item.vencimento}</td>
-          <td>${item.status.charAt(0).toUpperCase() + item.status.slice(1)}</td>
-          <td>
-            <button class="btn btn-sm btn-outline-danger" onclick="remover('${item.id}', this)">🗑️</button>
-            <button class="btn btn-sm btn-outline-success" onclick="marcarPago('${item.id}', this)">✔️</button>
-          </td>
-        `;
-        tabela.appendChild(tr);
-
-        if (item.tipo === 'entrada') entradas += valorNum;
-        else if (item.tipo === 'saida') saidas += valorNum;
-      }
+      return mes === mesSelecionado && ano === anoSelecionado;
+    })
+    .sort((a, b) => {
+      const [diaA, mesA, anoA] = a.vencimento.split('/');
+      const [diaB, mesB, anoB] = b.vencimento.split('/');
+      const dataA = new Date(`${anoA}-${mesA}-${diaA}`);
+      const dataB = new Date(`${anoB}-${mesB}-${diaB}`);
+      return dataA - dataB;
     });
 
-    atualizarResumoMensal(entradas, saidas);
-  }
+  dadosMesAtual.forEach(item => {
+    const tr = document.createElement('tr');
+    if (item.status === 'pendente') tr.classList.add('pendente');
+    tr.classList.add('fade-in');
 
-  function atualizarResumoMensal(entradas, saidas) {
-    const saldo = entradas - saidas;
-    resumoMensal.innerHTML = `
-      💰 Entradas: R$ ${entradas.toFixed(2)} &nbsp; | &nbsp;
-      📤 Saídas: R$ ${saidas.toFixed(2)} &nbsp; | &nbsp;
-      🧾 Saldo: <span class="fw-bold text-${saldo >= 0 ? 'success' : 'danger'}">R$ ${saldo.toFixed(2)}</span>
+    const valorNum = parseFloat(item.valor);
+    tr.innerHTML = `
+      <td>${item.descricao}</td>
+      <td>R$ ${valorNum.toFixed(2)}</td>
+      <td>${item.tipo.charAt(0).toUpperCase() + item.tipo.slice(1)}</td>
+      <td>${item.vencimento}</td>
+      <td>${item.status.charAt(0).toUpperCase() + item.status.slice(1)}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-danger" onclick="remover('${item.id}', this)">🗑️</button>
+        <button class="btn btn-sm btn-outline-success" onclick="marcarPago('${item.id}', this)">✔️</button>
+      </td>
     `;
-  }
+    tabela.appendChild(tr);
+
+    if (item.tipo === 'entrada') entradas += valorNum;
+    else if (item.tipo === 'saida') saidas += valorNum;
+  });
+
+  atualizarResumoMensal(entradas, saidas);
+}
+
+function atualizarResumoMensal(entradas, saidas) {
+  const saldo = entradas - saidas;
+  resumoMensal.innerHTML = `
+    💰 Entradas: R$ ${entradas.toFixed(2)} &nbsp; | &nbsp;
+    📤 Saídas: R$ ${saidas.toFixed(2)} &nbsp; | &nbsp;
+    🧾 Saldo: <span class="fw-bold text-${saldo >= 0 ? 'success' : 'danger'}">R$ ${saldo.toFixed(2)}</span>
+  `;
+}
 
   async function remover(id, btn) {
     if (!confirm('Deseja remover este lançamento?')) return;
